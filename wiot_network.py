@@ -9,13 +9,14 @@ import pandas as pd
 import numpy as np
 import os
 import networkx as nx
+import pickle
 
 #first, need to convert WIOT xlsb files to xlsx
 
 #fill in directory as appropriate
-#directory = "..."
-#data_path = 'wiot_data/'
-#os.chdir(directory)
+directory = "C:/Users/wht/Desktop/optimal_intervention-master"
+data_path = 'wiot_data/'
+os.chdir(directory)
 
 def get_data(year, data_path='wiot_data/'):
     if int(year) not in list(range(2000,2015)):
@@ -34,7 +35,7 @@ def get_data(year, data_path='wiot_data/'):
         key = str(df_cols[col][4]) + "_" + str(df_cols[col][2])
         cols += [key]
     df_cols.columns = cols
-    df_cols.index = ['category','description','country']
+    df_cols.index = ['category', 'description', 'country'] # type: ignore
     df_cols = df_cols.transpose()
     
     '''get the index data'''
@@ -44,14 +45,14 @@ def get_data(year, data_path='wiot_data/'):
     for ind in df_inds.index:
         key = str(df_inds[2][ind]) + "_" + str(df_inds[0][ind])
         inds += [key]
-    df_inds.index = inds
+    df_inds.index = inds # type: ignore
     df_inds.columns = ['category','description','country']
     
     '''format dataframe'''
     df = df.drop([0,1,2,3], axis=1)
     df = df.drop([1,2,3,4,5])
     df.columns = df_cols.index
-    df.index = df_inds.index
+    df.index = df_inds.index # type: ignore
     
     return df, df_cols, df_inds
 
@@ -101,16 +102,21 @@ def create_GJ_system(year):
 def create_graph(year, name):
     df_C, Dp, theta, beta, df_inds = create_GJ_system(year)
     
-    G = nx.from_numpy_matrix(df_C.values, parallel_edges=True, create_using=nx.MultiDiGraph())
+    G = nx.from_numpy_array(df_C.values, parallel_edges=True, create_using=nx.MultiDiGraph())
     label_mapping = {idx: val for idx, val in enumerate(df_C.columns)}
     G = nx.relabel_nodes(G, label_mapping)
     node_dict = {}
     for nd in df_inds.index[:-1]:
         node_dict[nd] = df_inds['country'][nd] + "-" + df_inds['description'][nd]
     nx.set_node_attributes(G, name='label', values=node_dict)
-    #nx.write_gexf(G, '{}{}.gexf'.format(name,year))
+    # nx.write_gexf(G, '{}{}.gexf'.format(name,year))
     return G, Dp, theta, beta
 
-#year = 2014
-#df, df_cols, df_inds = get_data(year)
-#G, Dp, theta, beta = create_graph(year, 'wiot_graph')
+year = 2014
+df, df_cols, df_inds = get_data(year)
+df_C = interpret_data(df, df_inds)
+G, Dp, theta, beta = create_graph(year, 'wiot_graph')
+
+# Save the results
+with open('wiot_rmt{}.pkl'.format(year), 'wb') as f:
+    pickle.dump((df_C, Dp, theta, beta), f)
