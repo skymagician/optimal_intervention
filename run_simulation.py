@@ -23,8 +23,8 @@ import interpret_data as interpret
 ###############################################################################
 '''Set up the network'''
 year = 2014
-path = 'C:/Users/Ariah/Box Sync/!-Research/2019/Code/cascade_sensitivity/wiot_model'
-with open(path + '/wiot_rmt{}'.format(year), 'rb') as f:
+path = 'C:/Users/wht/Desktop/optimal_intervention-master'
+with open(path + '/wiot_rmt{}.pkl'.format(year), 'rb') as f:
     df_C, Dp, theta, beta = pickle.load(f)
     C = df_C.values
     np.fill_diagonal(C, 0)
@@ -32,7 +32,7 @@ value_added = np.array([beta[i]/0.1 if beta[i]>=0 else 0 for i in range(len(C))]
 beta = 0.1*value_added
 C_hat = cascades.calc_C_hat(C)
 lu, piv = la.lu_factor(np.eye(len(C))-C)
-v,y = cascades.solve_GJ_factor(C_hat, lu, piv, Dp, np.zeros(len(C)), np.zeros(len(C)))
+v,y,y_list = cascades.solve_GJ_factor(C_hat, lu, piv, Dp, np.zeros(len(C)), np.zeros(len(C)))
 theta = v - value_added
 theta = [theta[i] if theta[i]>=0 else 0 for i in range(len(C))]
 
@@ -47,11 +47,12 @@ b_frac = 100
 b_num = 5000
 lu, piv, C_hat, fv, rvs = simulate.setup_simulate(C, Dp, theta, beta, rho, sigma, a, samples)
 rvs = np.maximum(rvs, -1)
-S_data, T_data, b_array = simulate.run_simulate(lu, piv, C_hat, fv, rvs, C, Dp, theta, beta, samples, b_frac, b_num)
-
+S_data, T_data, b_array, tilde_theta_array, Ind_T_array, y_1_list_all = simulate.run_simulate(
+    lu, piv, C_hat, fv, rvs, C, Dp, theta, beta, samples, b_frac, b_num)
 
 with open('fs_2014', 'wb') as f:
-    pickle.dump([rvs, S_data, T_data, b_array, (rho, sigma, a, samples, b_frac, b_num)],f)
+    pickle.dump([rvs, S_data, T_data, b_array, tilde_theta_array, Ind_T_array, y_1_list_all, (
+        rho, sigma, a, samples, b_frac, b_num)], f)
 
 
 
@@ -69,7 +70,7 @@ n = len(C)
 plt.plot(b_array/np.sum(Dp), np.mean(S_data, axis=0)/n)
 plt.plot(b_array/np.sum(Dp), np.percentile(S_data, 90, axis=0)/n )
 plt.plot(b_array/np.sum(Dp), np.percentile(S_data, 10, axis=0)/n )
-plt.axhline(y=np.mean(T_data)/n)
+plt.axhline(y=float(np.mean(T_data)/n))
 plt.title('Expected Fraction of Defaults Prevented', fontsize=14)
 plt.ylabel('Estimated E|S| / |U|', fontsize=14)
 plt.xlabel('b / |Dp|', fontsize=14)
@@ -85,7 +86,7 @@ n = len(C)
 plt.plot( b_array/np.sum(Dp), (np.mean(T_data) - np.mean(S_data, axis=0))/n, label='Expected')
 plt.plot( b_array/np.sum(Dp), (T_tvar - S_tvar)/n, label='TVaR(q=10)')
 plt.title('Expected % of Firms Defaulting', fontsize=14)
-plt.ylabel('Estimated E|T \ S| / |U|', fontsize=14)
+plt.ylabel('Estimated E|T \\ S| / |U|', fontsize=14)
 plt.xlabel('b / |Dp|', fontsize=14)
 plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0))
 plt.legend(loc='upper right', fontsize=14)
@@ -109,7 +110,7 @@ for i in range(samples):
     b_uniarray[b_num*i: b_num*(i+1)] = b_array[:b_num]/np.sum(Dp)
 
 fig, ax = plt.subplots()
-hist = plt.hist2d(b_uniarray, A_uniarray, bins=300, cmap=cm.gray, norm=mcolors.PowerNorm(0.3))
+hist = plt.hist2d(b_uniarray, A_uniarray, bins=300, cmap='gray', norm=mcolors.PowerNorm(0.3))
 CS = plt.contour(hist[1][1:], hist[2][1:], np.transpose(hist[0]), levels=80, cmap='flag')
 
 # make a colorbar for the contour lines
@@ -134,7 +135,7 @@ plt.show()
 #plot 1d histograms
 
 fig, ax = plt.subplots()
-sns.distplot(S_data[:,-1]/len(C), kde=False)
+sns.histplot(S_data[:,-1]/len(C), kde=False)
 plt.title('Defaults Averted from 1% Intervention', fontsize=18)
 plt.ylabel('Count', fontsize=18)
 plt.xlabel('Defaults Averted (% Total Firms)', fontsize=18)
@@ -146,8 +147,8 @@ plt.savefig('simulation_hist_1d_diff.pdf')
 plt.show()
 
 fig, ax = plt.subplots()
-ax1 = sns.distplot(T_data/len(C), kde=False, label='No Intervention')
-ax2 = sns.distplot((T_data - S_data[:,-1])/len(C), kde=False, label='1% Intervention')
+ax1 = sns.histplot(T_data/len(C), kde=False, label='No Intervention')
+ax2 = sns.histplot((T_data - S_data[:,-1])/len(C), kde=False, label='1% Intervention')
 plt.title('Histogram % Firms Defaulting', fontsize=18)
 plt.ylabel('Count', fontsize=18)
 plt.xlabel('% Firms Defaulting', fontsize=18)

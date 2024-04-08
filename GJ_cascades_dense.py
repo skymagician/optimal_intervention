@@ -23,28 +23,29 @@ def solve_GJ(C, Dp, theta, beta):
     
     #factor I-C and store
     lu, piv = la.lu_factor(np.eye(n)-C)
-    v, y = solve_GJ_factor(C_hat, lu, piv, Dp, theta, beta)
+    v, y, y_list = solve_GJ_factor(C_hat, lu, piv, Dp, theta, beta)
     return v, y
-
 
 def solve_GJ_factor(C_hat, lu, piv, Dp, theta, beta):
     '''lu,piv are LU factors of I-C'''
     n = len(C_hat)
     (y_0, y_1, b) = (np.zeros(n, dtype=np.uint8), np.zeros(n, dtype=np.uint8), np.zeros(n))
     t=0
-    
+    y_1_list = []  # Initialize an empty list to store y_1
+
     while not np.array_equal(y_0, y_1) or t==0:
         t += 1
         y_0 = np.array(y_1, copy=True)
         V = la.lu_solve((lu,piv), Dp-b)
         v = np.dot(C_hat,V)
         y_1 = np.array([1 if v[i]<theta[i] else 0 for i in range(n)], dtype=np.uint8)
-        b = np.multiply(beta,y_1)
-    return v, np.array(y_1, dtype=np.uint8)
+        y_1_list.append(y_1)  # Add y_1 to the list
+        b = np.multiply(beta,y_1)  
+    return v, np.array(y_1, dtype=np.uint8), np.array(y_1_list, dtype=np.uint8)
 
 def TransformThresh(lu, piv, C_hat, Dp, theta, beta):
     '''returns tilde_theta, nonzero entries are thresholds of nodes relevent to influence max problem'''
-    v, Ind_T = solve_GJ_factor(C_hat, lu, piv, Dp, theta, beta)
+    v, Ind_T, y_1_list = solve_GJ_factor(C_hat, lu, piv, Dp, theta, beta)
     tilde_theta = np.zeros(len(Dp))
     
     C_hat_inv = np.diag( 1/np.diag(C_hat) )
@@ -57,7 +58,7 @@ def TransformThresh(lu, piv, C_hat, Dp, theta, beta):
         diff = la.lu_solve((lu,piv), np.multiply(beta,Ind_u))
         tilde_theta[u] = th[u] - V[u] - diff[u]
 
-    return tilde_theta, Ind_T
+    return tilde_theta, Ind_T, y_1_list
 
 
 ###############################################################################
@@ -81,7 +82,7 @@ def precompute_fv(f, lu, piv, C_hat, beta):
     return fv
 
 def Gamma_neg(v, Ind_A, f, lu, piv, C_hat, beta, fv):
-    '''\Gamma^-(v,A) = total sum of weight of edges from node v to set A'''
+    '''Gamma^-(v,A) = total sum of weight of edges from node v to set A'''
     #Ind_A = np.array([1 if u in A and u != v else 0 for u in range(n)]) #this takes too long to construct, only really need to construct once, pass as arg
     Ind_A[v] = 0
     calc = np.sum(np.multiply(Ind_A, fv[v]))

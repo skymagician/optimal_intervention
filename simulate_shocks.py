@@ -34,11 +34,17 @@ def run_simulate(lu, piv, C_hat, fv, rvs, C, Dp, theta, beta, samples, b_frac, b
     b_array = np.linspace(0, np.sum(Dp)/b_frac, num=b_num)
     S_data = np.zeros((samples, b_num))
     T_data = np.zeros(samples)
-    
+    tilde_theta_array = np.zeros((samples, len(Dp))) # Initialize a NumPy array to store tilde_theta
+    Ind_T_array = np.zeros((samples, len(C))) # Initialize a NumPy array to store Ind_T
+    y_1_list_all = []  # Initialize an empty list to store y_1_list
+
     i=0
     for ran in rvs:
         Dp_prime = np.multiply(Dp, 1+ran)
-        tilde_theta, Ind_T = cascades.TransformThresh(lu, piv, C_hat, Dp_prime, theta, beta)
+        tilde_theta, Ind_T, y_1_list = cascades.TransformThresh(lu, piv, C_hat, Dp_prime, theta, beta)
+        tilde_theta_array[i] = tilde_theta  # Store tilde_theta in the array
+        Ind_T_array[i] = Ind_T  # Store Ind_T in the array
+        y_1_list_all.append(y_1_list)  # Store y_1_list in the list
         start_time = time.time()
         x_dict, S_size_dict = cascades.DiscountFrac_batch(fv, cascades.f_GJ, b_array, C, C_hat, beta, lu, piv, tilde_theta, Ind_T, Dp_prime, theta)
         y = np.array([S_size_dict[b] for b in b_array])
@@ -48,7 +54,7 @@ def run_simulate(lu, piv, C_hat, fv, rvs, C, Dp, theta, beta, samples, b_frac, b
         print("{} simulation complete, {} initial failures, {} seconds, |T|={}, |S|={}".format(i,np.sum(Ind_T), time.time()-start_time, np.sum(Ind_T), np.sum(S_data[i,-1])))
         i += 1
     
-    return S_data, T_data, b_array
+    return S_data, T_data, b_array, tilde_theta_array, Ind_T_array, y_1_list_all
 
 
 
